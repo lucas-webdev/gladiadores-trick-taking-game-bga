@@ -54,6 +54,11 @@ define([
       // renderizar minha mão
       this.renderHand(gamedatas.hand || []);
 
+      // renderizar dorsos para adversários
+      if (gamedatas.handCounts) {
+        this.renderAllOpponentBacks(gamedatas.handCounts);
+      }
+
       // renderizar cartas na arena (reconexão)
       if (Array.isArray(gamedatas.arena)) {
         gamedatas.arena.forEach((c) => {
@@ -106,6 +111,32 @@ define([
         container.appendChild(node);
         this.playerHand[card.card_id] = node;
       });
+    },
+
+    renderOpponentBacks: function (playerId, count) {
+      if (String(playerId) === String(this.player_id)) return;
+      const container = document.getElementById(`hand-${playerId}`);
+      if (!container) return;
+      container.innerHTML = "";
+      for (let i = 0; i < count; i++) {
+        const back = document.createElement("div");
+        back.classList.add("gld-card-back");
+        container.appendChild(back);
+      }
+    },
+
+    renderAllOpponentBacks: function (handCounts) {
+      Object.keys(handCounts).forEach((pid) => {
+        this.renderOpponentBacks(pid, parseInt(handCounts[pid]) || 0);
+      });
+    },
+
+    removeOneOpponentBack: function (playerId) {
+      if (String(playerId) === String(this.player_id)) return;
+      const container = document.getElementById(`hand-${playerId}`);
+      if (!container) return;
+      const back = container.querySelector(".gld-card-back");
+      if (back) back.remove();
     },
 
     createCardNode: function (card) {
@@ -268,20 +299,29 @@ define([
       const arena = document.getElementById("arena");
       if (arena) arena.innerHTML = "";
       this.clearAllAreas();
+
+      // Renderiza dorsos para todos os adversários
+      const count = args.cardsPerPlayer || 12;
+      Object.values(this.gamedatas.players).forEach((p) => {
+        this.renderOpponentBacks(p.id, count);
+      });
     },
 
     notif_newHandCards: async function (args) {
-      // Renderiza a nova mão recebida do servidor
+      // Renderiza a nova mão recebida do servidor (apenas o próprio jogador)
       this.renderHand(args.hand || []);
     },
 
     notif_cardPlayed: async function (args) {
       console.log("notif_cardPlayed", args);
-      // Se sou eu, remover da mão
       if (args.player_id == this.player_id) {
+        // Sou eu: remover carta da minha mão
         const node = this.playerHand[args.card.card_id];
         if (node) node.remove();
         delete this.playerHand[args.card.card_id];
+      } else {
+        // Adversário: remover um dorso da mão dele
+        this.removeOneOpponentBack(args.player_id);
       }
       // Colocar na arena
       this.placeInArena(args.card, args.player_id);

@@ -266,8 +266,7 @@ class Game extends \Table
     {
         $next = (int)$this->getGameStateValue('next_leader');
         if ($next > 0) {
-            // NUNCA use changeActivePlayer aqui: estamos num GAME state, use setActivePlayer
-            $this->gamestate->setActivePlayer($next);
+            $this->gamestate->changeActivePlayer($next);
             $this->setGameStateValue('next_leader', 0);
         }
 
@@ -436,7 +435,11 @@ class Game extends \Table
         self::DbQuery("UPDATE card SET location='discard', location_arg=0 WHERE location LIKE 'arena_%' AND card_id NOT IN ($idsStr)");
 
         if (!$movedIds) return [];
-        return array_values(self::getObjectListFromDB("SELECT card_id,type,suit,value FROM card WHERE card_id IN ($idsStr)"));
+        $result = array_values(self::getObjectListFromDB("SELECT card_id,type,suit,value,dual_suits FROM card WHERE card_id IN ($idsStr)"));
+        foreach ($result as &$r) {
+            $r['assetCode'] = $this->mapAssetCode($r);
+        }
+        return $result;
     }
 
     private function clearArena(): void
@@ -854,7 +857,8 @@ class Game extends \Table
         $order = (int)self::getUniqueValueFromDB("SELECT IFNULL(MAX(location_arg),0)+1 FROM card WHERE location LIKE 'arena_%'");
         self::DbQuery("UPDATE card SET location='arena_{$pid}', location_arg={$order} WHERE card_id=" . $card_id);
 
-        // notificar
+        // notificar (inclui assetCode para o sprite)
+        $card['assetCode'] = $this->mapAssetCode($card);
         $this->notifyAllPlayers('cardPlayed', clienttranslate('${player_name} joga uma carta'), [
             'player_id'   => $pid,
             'player_name' => $this->getActivePlayerName(),

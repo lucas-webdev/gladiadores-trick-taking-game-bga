@@ -158,6 +158,21 @@
 /* === Marcador de jogador inicial (GL051) === */
 .gld-GL051 { background-position: -185px -1259px; }
 
+/* === Verso da carta (provisório: usa GL051) === */
+.gld-card-back {
+  background-image: url('img/cards_sprite.jpg');
+  background-repeat: no-repeat;
+  background-size: 1800px 1500px;
+  background-position: -185px -1259px;
+  width: 169px;
+  height: 232px;
+  border-radius: 8px;
+  border: 1px solid #333;
+  box-shadow: 0 2px 4px rgba(0,0,0,.3);
+  user-select: none;
+  display: inline-block;
+}
+
 /* ===== Interação: cartas jogáveis / não-jogáveis ===== */
 .gld-card.gld-playable {
   box-shadow: 0 0 8px 3px rgba(0, 200, 0, 0.7);
