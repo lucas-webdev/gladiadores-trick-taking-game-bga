@@ -51,6 +51,50 @@ class Game extends \Table
         $res['lead_suit_i']  = (int)$this->getGameStateValue('lead_suit');
         $res['lion_count']   = (int)$this->getGameStateValue('lion_count');
 
+        // Cartas na arena (visíveis para todos)
+        $arena = self::getObjectListFromDB(
+            "SELECT card_id, type, suit, value, dual_suits, location, location_arg FROM card WHERE location LIKE 'arena_%' ORDER BY location_arg ASC"
+        );
+        foreach ($arena as &$a) {
+            $a['player_id'] = (int)substr($a['location'], strlen('arena_'));
+            $a['assetCode'] = $this->mapAssetCode($a);
+        }
+        $res['arena'] = array_values($arena);
+
+        // Áreas de jogo dos jogadores (cartas ganhas, visíveis para todos)
+        $areas = [];
+        foreach ($res['players'] as $pid2 => $_) {
+            $areaCards = self::getObjectListFromDB(
+                "SELECT card_id, type, suit, value FROM card WHERE location='area_{$pid2}' ORDER BY suit, value"
+            );
+            foreach ($areaCards as &$ac) {
+                $ac['assetCode'] = $this->mapAssetCode($ac);
+            }
+            $areas[$pid2] = array_values($areaCards);
+        }
+        $res['areas'] = $areas;
+
+        // Contagem de cartas na mão de cada jogador (para exibir dorso)
+        $handCounts = [];
+        foreach ($res['players'] as $pid2 => $_) {
+            $handCounts[$pid2] = (int)self::getUniqueValueFromDB(
+                "SELECT COUNT(*) FROM card WHERE location='hand_{$pid2}'"
+            );
+        }
+        $res['handCounts'] = $handCounts;
+
+        // Trilhas de glória (lado A)
+        if ($res['board_side'] === 0) {
+            $tracks = [];
+            foreach ($res['players'] as $pid2 => $_) {
+                $rows = self::getCollectionFromDb(
+                    "SELECT suit, position FROM glory_track WHERE player_id={$pid2}"
+                );
+                $tracks[$pid2] = $rows;
+            }
+            $res['gloryTracks'] = $tracks;
+        }
+
         return $res;
     }
 
@@ -62,7 +106,20 @@ class Game extends \Table
     protected function zombieTurn(array $state, int $active_player): void
     {
         if ($state['type'] === 'activeplayer') {
-            $this->gamestate->nextState('zombiePass');
+            // Auto-play: escolhe a primeira carta jogável
+            $args = $this->argCommonPlayable();
+            $ids = $args['playableCardsIds'] ?? [];
+            if (!empty($ids)) {
+                $cardId = (int)$ids[0];
+                $card = self::getObjectFromDB(
+                    "SELECT type, dual_suits FROM card WHERE card_id={$cardId}"
+                );
+                $suit = null;
+                if ($card && $card['type'] === 'damaged' && !empty($card['dual_suits'])) {
+                    $suit = explode('|', $card['dual_suits'])[0];
+                }
+                $this->actPlayCard($cardId, $suit);
+            }
             return;
         }
         if ($state['type'] === 'multipleactiveplayer') {
@@ -124,6 +181,23 @@ class Game extends \Table
         $this->setGameStateInitialValue('round_number', 1);
         $this->setGameStateInitialValue('lead_suit', 0);
         $this->setGameStateInitialValue('lion_count', 0);
+        $this->setGameStateInitialValue('next_leader', 0);
+
+        // Initialize glory tracks / scores based on board side
+        if ($boardSide === 0) {
+            // Side A: create glory track entries, starting at position 7
+            foreach ($players as $player_id => $_) {
+                foreach (self::SUITS as $s) {
+                    self::DbQuery(vsprintf(
+                        "INSERT INTO glory_track (player_id, suit, position) VALUES (%d, '%s', 7)",
+                        [(int)$player_id, $s]
+                    ));
+                }
+            }
+        } else {
+            // Side B: start score at 5
+            self::DbQuery("UPDATE player SET player_score = 5");
+        }
 
         $this->activeNextPlayer();
     }
@@ -146,9 +220,21 @@ class Game extends \Table
         $this->setGameStateValue('lead_suit', 0);
         $this->setGameStateValue('lion_count', 0);
 
-        $this->notifyAllPlayers('newHand', clienttranslate('Nova mão distribuída'), [
+        $this->notifyAllPlayers('newHand', clienttranslate('Nova mão distribuída – Rodada ${round_number}'), [
             'cardsPerPlayer' => $cardsPerPlayer,
+            'round_number'   => (int)$this->getGameStateValue('round_number'),
         ]);
+
+        // Envia a mão de cada jogador via notificação privada
+        foreach ($playerIds as $dealPid) {
+            $dealHand = self::getObjectListFromDB(
+                "SELECT card_id, type, suit, value, dual_suits FROM card WHERE location='hand_{$dealPid}' ORDER BY location_arg"
+            );
+            foreach ($dealHand as &$dh) {
+                $dh['assetCode'] = $this->mapAssetCode($dh);
+            }
+            $this->notifyPlayer($dealPid, 'newHandCards', '', ['hand' => array_values($dealHand)]);
+        }
 
         $this->gamestate->nextState('next'); // → trickLead
     }
@@ -284,7 +370,7 @@ class Game extends \Table
         return (int)reset($played)['player_id'];
     }
 
-    private function applyDamagedQueue(array $played, int $winner): void
+    private function applyDamagedQueue(array &$played, int $winner): void
     {
         // Ordem de resolução = ordem jogada
         $queue = array_values(array_filter($played, fn($c) => $c['type'] === 'damaged'));
@@ -391,24 +477,79 @@ class Game extends \Table
             }
         }
 
+        // Atualiza posição na trilha de glória por naipe
         foreach (self::SUITS as $s) {
             $max = 0;
             foreach ($pids as $pid) {
                 $max = max($max, $counts[$pid][$s]);
             }
             foreach ($pids as $pid) {
-                $cur = (int)self::getUniqueValueFromDB("SELECT player_score FROM player WHERE player_id=" . $pid);
-                if ($counts[$pid][$s] === 0) {
-                    // sem mudança
-                } elseif ($counts[$pid][$s] === $max && $max > 0) {
-                    $cur += 1;
+                $cnt = $counts[$pid][$s];
+                if ($cnt === 0) {
+                    // B) Sem cartas: permanece
+                } elseif ($cnt === $max && $max > 0) {
+                    // A) Maioria (ou empate na maioria): avança 1
+                    self::DbQuery(
+                        "UPDATE glory_track SET position = position + 1 WHERE player_id={$pid} AND suit='" . addslashes($s) . "'"
+                    );
                 } else {
-                    $diff = $max - $counts[$pid][$s];
-                    $cur += ($diff >= 4 ? -2 : -1);
+                    // C) Tem cartas mas não maioria
+                    $diff = $max - $cnt;
+                    $delta = ($diff >= 4) ? -2 : -1;
+                    self::DbQuery(
+                        "UPDATE glory_track SET position = position + ({$delta}) WHERE player_id={$pid} AND suit='" . addslashes($s) . "'"
+                    );
                 }
-                self::DbQuery("UPDATE player SET player_score=" . $cur . " WHERE player_id=" . $pid);
-                $this->incStat(max(0, $cur), 'points_side_a', $pid);
             }
+        }
+
+        // Recalcula player_score projetado após cada rodada
+        $this->computeFinalScoreSideA();
+    }
+
+    private function computeFinalScoreSideA(): void
+    {
+        $pids = array_map('intval', array_keys($this->loadPlayersBasicInfos()));
+        $playerCount = count($pids);
+        $rankPoints = $playerCount === 3 ? [5, 3, 2] : [5, 3, 2, 1];
+
+        $totalScores = array_fill_keys($pids, 0);
+        $firstPlaceCount = array_fill_keys($pids, 0);
+
+        foreach (self::SUITS as $s) {
+            $positions = [];
+            foreach ($pids as $pid) {
+                $positions[$pid] = (int)self::getUniqueValueFromDB(
+                    "SELECT position FROM glory_track WHERE player_id={$pid} AND suit='" . addslashes($s) . "'"
+                );
+            }
+
+            // Ordenar por posição decrescente (mais à direita = melhor)
+            arsort($positions);
+            $pidsSorted = array_keys($positions);
+
+            $rankIndex = 0;
+            $i = 0;
+            while ($i < count($pidsSorted)) {
+                $currentPos = $positions[$pidsSorted[$i]];
+                $tied = [];
+                while ($i < count($pidsSorted) && $positions[$pidsSorted[$i]] === $currentPos) {
+                    $tied[] = $pidsSorted[$i];
+                    $i++;
+                }
+                $pts = $rankPoints[$rankIndex] ?? 0;
+                foreach ($tied as $pid) {
+                    $totalScores[$pid] += $pts;
+                    if ($rankIndex === 0) {
+                        $firstPlaceCount[$pid]++;
+                    }
+                }
+                $rankIndex += count($tied);
+            }
+        }
+
+        foreach ($totalScores as $pid => $score) {
+            self::DbQuery("UPDATE player SET player_score={$score}, player_score_aux={$firstPlaceCount[$pid]} WHERE player_id={$pid}");
         }
     }
 
@@ -419,57 +560,71 @@ class Game extends \Table
 
         foreach ($pids as $pid) {
             $loc = "area_" . $pid;
+            // Conta apenas naipes presentes (> 0 cartas)
             $bySuit = [];
             foreach (self::SUITS as $s) {
-                $bySuit[$s] = (int)self::getUniqueValueFromDB(
+                $cnt = (int)self::getUniqueValueFromDB(
                     "SELECT COUNT(*) FROM card WHERE location='{$loc}' AND type='combat' AND suit='" . addslashes($s) . "'"
                 );
+                if ($cnt > 0) {
+                    $bySuit[$s] = $cnt;
+                }
             }
-            $vals = array_values($bySuit);
-            if (array_sum($vals) === 0) {
+
+            // D) Nenhuma carta: pontua igual ao maior pontuador da rodada
+            if (empty($bySuit)) {
                 $roundPoints[$pid] = null;
                 continue;
             }
 
+            $vals = array_values($bySuit);
             $max = max($vals);
             $min = min($vals);
-            if ($max === $min) {
+
+            if (count($bySuit) === 1) {
+                // C) Apenas um naipe presente: pontua o número de cartas
+                $roundPoints[$pid] = $max;
+            } elseif ($max === $min) {
+                // B) Quantidades iguais em todos os naipes presentes: somatório
                 $roundPoints[$pid] = array_sum($vals);
             } else {
+                // A) Quantidades diferentes: melhor - pior(es)
                 $best  = array_sum(array_filter($vals, fn($v) => $v === $max));
                 $worst = array_sum(array_filter($vals, fn($v) => $v === $min));
                 $roundPoints[$pid] = $best - $worst;
             }
         }
 
-        $maxPts = max(array_map(fn($v) => $v ?? PHP_INT_MIN, $roundPoints));
+        // Resolve caso D): quem não tem cartas pontua igual ao maior da rodada
+        $maxPts = 0;
+        foreach ($roundPoints as $pts) {
+            if ($pts !== null && $pts > $maxPts) $maxPts = $pts;
+        }
         foreach ($roundPoints as $pid => $pts) {
             if ($pts === null) $roundPoints[$pid] = $maxPts;
         }
 
         foreach ($roundPoints as $pid => $delta) {
             $cur = (int)self::getUniqueValueFromDB("SELECT player_score FROM player WHERE player_id=" . $pid);
-            $new = $cur + (int)$delta;
+            $new = max(0, $cur + (int)$delta);
             self::DbQuery("UPDATE player SET player_score=" . $new . " WHERE player_id=" . $pid);
-            $this->incStat((int)$delta, 'points_side_b', $pid);
         }
     }
 
     private function isEndOfGame(): bool
     {
         $players = count($this->loadPlayersBasicInfos());
-        $sideB   = (int)$this->getGameStateValue('board_side') === 1;
+        $maxRounds = ($players === 3) ? 3 : 4;
+        $round = (int)$this->getGameStateValue('round_number');
+        $sideB = (int)$this->getGameStateValue('board_side') === 1;
 
         if ($sideB) {
-            $target = ($players === 3 ? 15 : 20);
+            $target = ($players === 3) ? 15 : 20;
             $max = (int)self::getUniqueValueFromDB("SELECT MAX(player_score) FROM player");
             if ($max >= $target) return true;
-            $round = (int)$this->getGameStateValue('round_number');
-            return $round > ($players === 3 ? 3 : 4);
         }
 
-        $round = (int)$this->getGameStateValue('round_number');
-        return $round > ($players === 3 ? 3 : 4);
+        return $round >= $maxRounds;
     }
 
     private function passFirstPlayerMarker(): void
@@ -551,8 +706,8 @@ class Game extends \Table
      * GL011..GL020 = M 1..10
      * GL021..GL030 = G 1..10
      * GL031..GL040 = X 1..10
-     * GL041..GL044 = 4 Leões
-     * GL045..GL050 = 6 Armas Danificadas
+     * GL041..GL046 = 6 Armas Danificadas
+     * GL047..GL050 = 4 Leões
      */
     private function mapAssetCode(array $card): string
     {
@@ -565,13 +720,14 @@ class Game extends \Table
 
         if ($card['type'] === 'damaged') {
             $norm = strtoupper(str_replace(['/', '-', ','], '|', $card['dual_suits'] ?? ''));
+            // Mapa bidirecional: aceita ambas as ordens dos naipes
             $map = [
-                'X|G' => 41,
-                'X|M' => 42,
-                'X|T' => 43,
-                'G|X' => 44,
-                'G|T' => 45,
-                'M|T' => 46,
+                'T|M' => 46, 'M|T' => 46,
+                'T|G' => 45, 'G|T' => 45,
+                'T|X' => 43, 'X|T' => 43,
+                'M|G' => 44, 'G|M' => 44,
+                'M|X' => 42, 'X|M' => 42,
+                'G|X' => 41, 'X|G' => 41,
             ];
             $num = $map[$norm] ?? 41;
             return 'GL' . str_pad((string)$num, 3, '0', STR_PAD_LEFT);
@@ -630,46 +786,35 @@ class Game extends \Table
             return ['playableCardsIds' => array_map(fn($c) => (int)$c['card_id'], $hand)];
         }
 
-        // Tem combate do naipe líder?
-        $hasLeaderCombat = false;
+        // Regras de seguir naipe:
+        // - Cartas especiais (leão e arma danificada) são SEMPRE jogáveis
+        // - Cartas de combate: DEVE jogar do naipe líder se tiver; senão, qualquer combate
+
+        $hasLeadCombat = false;
         foreach ($hand as $c) {
             if ($c['type'] === 'combat' && $c['suit'] === $lead) {
-                $hasLeaderCombat = true;
+                $hasLeadCombat = true;
                 break;
             }
         }
 
-        // Tem arma danificada que possa declarar o líder?
-        $hasDamagedLeader = false;
-        foreach ($hand as $c) {
-            if ($c['type'] === 'damaged' && !empty($c['dual_suits'])) {
-                [$a, $b] = explode('|', $c['dual_suits']);
-                if ($a === $lead || $b === $lead) {
-                    $hasDamagedLeader = true;
-                    break;
-                }
-            }
-        }
-
         $ids = [];
-        if ($hasLeaderCombat || $hasDamagedLeader) {
-            // Obrigado a "seguir": combate do líder ou arma danificada que cubra o líder
-            foreach ($hand as $c) {
-                if ($c['type'] === 'combat' && $c['suit'] === $lead) {
-                    $ids[] = (int)$c['card_id'];
-                }
-                if ($c['type'] === 'damaged' && !empty($c['dual_suits'])) {
-                    [$a, $b] = explode('|', $c['dual_suits']);
-                    if ($a === $lead || $b === $lead) {
+        foreach ($hand as $c) {
+            // Cartas especiais: sempre jogáveis
+            if ($c['type'] === 'lion' || $c['type'] === 'damaged') {
+                $ids[] = (int)$c['card_id'];
+                continue;
+            }
+            // Cartas de combate: segue naipe líder se possível
+            if ($c['type'] === 'combat') {
+                if ($hasLeadCombat) {
+                    if ($c['suit'] === $lead) {
                         $ids[] = (int)$c['card_id'];
                     }
+                } else {
+                    $ids[] = (int)$c['card_id'];
                 }
             }
-            // Se nada entrou por algum erro, libera toda mão como fallback seguro
-            if (!$ids) $ids = array_map(fn($c) => (int)$c['card_id'], $hand);
-        } else {
-            // Não consegue seguir → qualquer carta é jogável
-            $ids = array_map(fn($c) => (int)$c['card_id'], $hand);
         }
 
         return ['playableCardsIds' => $ids];
@@ -740,15 +885,4 @@ class Game extends \Table
         $this->gamestate->nextState('follow'); // (→ state 21)
     }
 
-    public function actPass(): void
-    {
-        $this->checkAction('actPass');
-        $pid = (int)$this->getActivePlayerId();
-        $this->notifyAllPlayers('pass', clienttranslate('${player_name} passa'), [
-            'player_id' => $pid,
-            'player_name' => $this->getActivePlayerName()
-        ]);
-        $this->activeNextPlayer();
-        $this->gamestate->nextState('pass');              // transição definida no states
-    }
 }

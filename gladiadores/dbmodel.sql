@@ -51,3 +51,13 @@ PRIMARY KEY (`card_id`)
 --
 CREATE INDEX `idx_card_location` ON `card` (`location`);
 CREATE INDEX `idx_card_location_arg` ON `card` (`location_arg`);
+
+--
+-- Trilhas de glória (lado A): posição de cada jogador em cada naipe
+--
+CREATE TABLE IF NOT EXISTS `glory_track` (
+  `player_id` INT UNSIGNED NOT NULL,
+  `suit` CHAR(1) NOT NULL,
+  `position` INT NOT NULL DEFAULT 7,
+  PRIMARY KEY (`player_id`, `suit`)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8;

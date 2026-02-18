@@ -4,10 +4,18 @@ define([
   "ebg/core/gamegui",
   "ebg/counter",
 ], function (dojo, declare) {
+  // Mapeamento de letras de naipe para nomes legíveis
+  const SUIT_NAMES = {
+    T: "Tridente",
+    M: "Mangual",
+    G: "Gládio",
+    X: "Machado",
+  };
+
   return declare("bgagame.gladiadores", ebg.core.gamegui, {
     constructor: function () {
       console.log("gladiadores constructor");
-      this.playerHand = {}; // card_id -> DOM
+      this.playerHand = {}; // card_id -> DOM node
     },
 
     setup: function (gamedatas) {
@@ -27,7 +35,7 @@ define([
         );
       }
 
-      // criar zonas por jogador (inclui minha mão ANTES de renderizar)
+      // criar zonas por jogador
       const tables = document.getElementById("gld-player-tables");
       tables.innerHTML = "";
       Object.values(gamedatas.players).forEach((p) => {
@@ -45,6 +53,26 @@ define([
 
       // renderizar minha mão
       this.renderHand(gamedatas.hand || []);
+
+      // renderizar cartas na arena (reconexão)
+      if (Array.isArray(gamedatas.arena)) {
+        gamedatas.arena.forEach((c) => {
+          this.placeInArena(c, c.player_id);
+        });
+      }
+
+      // renderizar áreas de jogo dos jogadores (reconexão)
+      if (gamedatas.areas) {
+        Object.keys(gamedatas.areas).forEach((pid) => {
+          const cards = gamedatas.areas[pid];
+          const areaEl = document.getElementById(`area-${pid}`);
+          if (areaEl && Array.isArray(cards)) {
+            cards.forEach((c) => {
+              areaEl.appendChild(this.createCardNode(c));
+            });
+          }
+        });
+      }
 
       this.setupNotifications();
       console.log("Ending game setup");
@@ -68,7 +96,7 @@ define([
           container = document.getElementById(containerId);
         }
       }
-      if (!container) return; // evita crash
+      if (!container) return;
 
       container.innerHTML = "";
       this.playerHand = {};
@@ -81,7 +109,6 @@ define([
     },
 
     createCardNode: function (card) {
-      // Se vier assetCode do PHP, aplica sprite; senão mostra texto
       const div = document.createElement("div");
       div.classList.add("gld-card", `gld-${card.type}`);
       div.dataset.id = card.card_id;
@@ -102,38 +129,78 @@ define([
     placeInArena: function (card, player_id) {
       const slot = document.createElement("div");
       slot.classList.add("gld-arena-slot");
+      const playerName =
+        this.gamedatas.players[player_id]?.name || player_id;
+      slot.insertAdjacentHTML(
+        "beforeend",
+        `<div class="gld-arena-label">${playerName}</div>`
+      );
       slot.appendChild(this.createCardNode(card));
       document.getElementById("arena").appendChild(slot);
+    },
+
+    clearAllAreas: function () {
+      Object.values(this.gamedatas.players).forEach((p) => {
+        const areaEl = document.getElementById(`area-${p.id}`);
+        if (areaEl) areaEl.innerHTML = "";
+      });
     },
 
     /* ---------- estados ---------- */
 
     onEnteringState: function (stateName, args) {
       console.log("Entering state:", stateName, args);
-      // Nenhum painel flutuante por enquanto
+
+      if (
+        stateName === "trickLead" ||
+        stateName === "trickFollow"
+      ) {
+        // Destacar cartas jogáveis
+        this.highlightPlayableCards(args.args);
+      }
     },
 
     onLeavingState: function (stateName) {
       console.log("Leaving state:", stateName);
+      // Remover destaques
+      document
+        .querySelectorAll(".gld-card.gld-playable")
+        .forEach((el) => el.classList.remove("gld-playable"));
+      document
+        .querySelectorAll(".gld-card.gld-unplayable")
+        .forEach((el) => el.classList.remove("gld-unplayable"));
     },
 
     onUpdateActionButtons: function (stateName, args) {
       console.log("onUpdateActionButtons:", stateName, args);
-      // Estados válidos: 'trickLead' e 'trickFollow'. Sem "Passar".
       if (!this.isCurrentPlayerActive()) return;
+      // A UI usa clique nas cartas. Sem botões extras por enquanto.
+    },
 
-      switch (stateName) {
-        case "trickLead":
-        case "trickFollow":
-          // A UI usa clique nas cartas. Sem botões extras.
-          break;
-      }
+    highlightPlayableCards: function (args) {
+      if (!this.isCurrentPlayerActive()) return;
+      const playable = args?.playableCardsIds || [];
+      const playableSet = new Set(playable.map(String));
+
+      Object.entries(this.playerHand).forEach(([cardId, node]) => {
+        if (playableSet.has(String(cardId))) {
+          node.classList.add("gld-playable");
+          node.classList.remove("gld-unplayable");
+        } else {
+          node.classList.add("gld-unplayable");
+          node.classList.remove("gld-playable");
+        }
+      });
     },
 
     /* ---------- ações ---------- */
 
     onCardClick: function (card) {
       if (!this.isCurrentPlayerActive()) return;
+
+      // Verificar se a carta é jogável
+      const node = this.playerHand[card.card_id];
+      if (node && node.classList.contains("gld-unplayable")) return;
 
       // Se arma danificada, pedir naipe declarado
       if (card.type === "damaged") {
@@ -152,20 +219,36 @@ define([
     },
 
     promptDamagedSuit: function (card) {
-      // dual_suits pode vir como "T|M"; se não vier, pedir genericamente
       return new Promise((resolve) => {
         const suitsFromCard =
           card.dual_suits && typeof card.dual_suits === "string"
             ? card.dual_suits.split("|")
             : ["T", "M", "G", "X"];
 
-        // caixa simples usando browser prompt para começar
-        const label =
-          "Escolha o naipe para a arma danificada: " + suitsFromCard.join("/");
-        const ans = window.prompt(label, suitsFromCard[0] || "T");
-        const pick = (ans || "").toUpperCase();
-        if (suitsFromCard.includes(pick)) resolve(pick);
-        else resolve(null);
+        // Criar botões no painel de ação do BGA
+        this.removeActionButtons();
+        suitsFromCard.forEach((s) => {
+          const label = SUIT_NAMES[s] || s;
+          this.addActionButton(
+            `btn_suit_${s}`,
+            label,
+            () => {
+              this.removeActionButtons();
+              resolve(s);
+            }
+          );
+        });
+        this.addActionButton(
+          "btn_suit_cancel",
+          _("Cancelar"),
+          () => {
+            this.removeActionButtons();
+            resolve(null);
+          },
+          null,
+          false,
+          "gray"
+        );
       });
     },
 
@@ -181,10 +264,15 @@ define([
     },
 
     notif_newHand: async function (args) {
-      // Limpa arena visual
+      // Limpa arena e áreas de jogo para nova rodada
       const arena = document.getElementById("arena");
       if (arena) arena.innerHTML = "";
-      // Mão será recarregada quando servidor enviar getAllDatas no refresh automático
+      this.clearAllAreas();
+    },
+
+    notif_newHandCards: async function (args) {
+      // Renderiza a nova mão recebida do servidor
+      this.renderHand(args.hand || []);
     },
 
     notif_cardPlayed: async function (args) {
@@ -193,6 +281,7 @@ define([
       if (args.player_id == this.player_id) {
         const node = this.playerHand[args.card.card_id];
         if (node) node.remove();
+        delete this.playerHand[args.card.card_id];
       }
       // Colocar na arena
       this.placeInArena(args.card, args.player_id);
