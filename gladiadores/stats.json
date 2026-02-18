@@ -1,0 +1,46 @@
+{
+  "table": {
+    "rounds_played": {
+      "name": "Rodadas jogadas",
+      "type": "int"
+    },
+    "total_tricks": {
+      "name": "Batalhas jogadas",
+      "type": "int"
+    },
+    "total_points": {
+      "name": "Pontos totais marcados",
+      "type": "int"
+    },
+    "total_lions_played": {
+      "name": "Leões jogados",
+      "type": "int"
+    }
+  },
+  "player": {
+    "tricks_won": {
+      "name": "Batalhas vencidas",
+      "type": "int"
+    },
+    "points_scored": {
+      "name": "Pontos marcados",
+      "type": "int"
+    },
+    "points_side_a": {
+      "name": "Pontos no lado A",
+      "type": "int"
+    },
+    "points_side_b": {
+      "name": "Pontos no lado B",
+      "type": "int"
+    },
+    "lions_captured": {
+      "name": "Leões capturados",
+      "type": "int"
+    },
+    "damaged_weapons_used": {
+      "name": "Armas danificadas usadas",
+      "type": "int"
+    }
+  }
+}

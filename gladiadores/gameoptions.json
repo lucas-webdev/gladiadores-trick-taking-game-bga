@@ -1,0 +1,18 @@
+{
+  "board_side": {
+    "name": "Lado do tabuleiro",
+    "values": {
+      "0": { "name": "Lado A" },
+      "1": { "name": "Lado B" }
+    },
+    "default": 0
+  },
+  "start_player_random": {
+    "name": "Jogador inicial",
+    "values": {
+      "1": { "name": "Aleatório" },
+      "2": { "name": "Primeiro na lista" }
+    },
+    "default": 1
+  }
+}

@@ -1,0 +1,159 @@
+/*******************************
+ * Gladiadores - CSS refatorado
+ * Sprite: img/cards_sprite.jpg (1800x1500)
+ * Grade: 10 colunas × 6 linhas
+ * Pitch: 180x250; Safe Zone centralizada
+ * GL000 = bleed (não usada); GL001 inicia em col=1, row=0
+ *******************************/
+
+/* ===== Layout ===== */
+#gld-game-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+#gld-player-tables {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 16px;
+}
+
+/* ===== Arena ===== */
+.gld-arena {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: 12px 0;
+  padding: 8px;
+  border: 2px solid #888;
+  border-radius: 6px;
+  background: #f9f9f9;
+}
+.gld-arena-slot {
+  width: 180px;
+  height: 250px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* ===== Zona do jogador ===== */
+.gld-player-zone {
+  min-width: 260px;
+  background: #fff;
+  border: 1px solid #bbb;
+  border-radius: 6px;
+  padding: 8px;
+}
+.gld-hand, .gld-area {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 250px;
+  padding: 4px;
+  border: 1px solid #ccc;
+  background: #fafafa;
+  border-radius: 4px;
+}
+
+/* ===== Cartas ===== */
+.gld-card {
+  width: 169px;        /* safe zone */
+  height: 232px;
+  background-image: url('img/cards_sprite.jpg');
+  background-repeat: no-repeat;
+  background-size: 1800px 1500px;
+  border-radius: 8px;
+  border: 1px solid #333;
+  cursor: pointer;
+  user-select: none;
+  box-shadow: 0 2px 4px rgba(0,0,0,.3);
+  /* centra a safe zone dentro do slot de 184x250: */
+  transform: translate(-5px, -9px);
+}
+.gld-card:hover {
+  transform: translate(-5px, -9px) scale(1.05);
+  z-index: 2;
+}
+
+/* ===== Posições do sprite =====
+ * Fórmula usada:
+ *   X(col) = -(5 + 180*col), col=0..9
+ *   Y(row) = -(9 + 250*row), row=0..5
+ * Mapeamento:
+ *   row0: [bleed][GL001..GL009]
+ *   row1: [GL010..GL019]
+ *   row2: [GL020..GL029]
+ *   row3: [GL030..GL039]
+ *   row4: [GL040..GL049]
+ *   row5: [GL050..GL051]
+ */
+
+/* === Tridente 1–10 (GL001–GL010) === */
+.gld-GL001 { background-position: -185px -9px; }
+.gld-GL002 { background-position: -365px -9px; }
+.gld-GL003 { background-position: -545px -9px; }
+.gld-GL004 { background-position: -725px -9px; }
+.gld-GL005 { background-position: -905px -9px; }
+.gld-GL006 { background-position: -1085px -9px; }
+.gld-GL007 { background-position: -1265px -9px; }
+.gld-GL008 { background-position: -1445px -9px; }
+.gld-GL009 { background-position: -1625px -9px; }  /* confirmado */
+.gld-GL010 { background-position: -5px -259px; }
+
+/* === Mangual 1–10 (GL011–GL020) === */
+.gld-GL011 { background-position: -185px -259px; }
+.gld-GL012 { background-position: -365px -259px; }
+.gld-GL013 { background-position: -545px -259px; }
+.gld-GL014 { background-position: -725px -259px; }
+.gld-GL015 { background-position: -905px -259px; }
+.gld-GL016 { background-position: -1085px -259px; }
+.gld-GL017 { background-position: -1265px -259px; }
+.gld-GL018 { background-position: -1445px -259px; }
+.gld-GL019 { background-position: -1625px -259px; }
+.gld-GL020 { background-position: -5px -509px; }
+
+/* === Gládio 1–10 (GL021–GL030) === */
+.gld-GL021 { background-position: -185px -509px; }
+.gld-GL022 { background-position: -365px -509px; }
+.gld-GL023 { background-position: -545px -509px; }
+.gld-GL024 { background-position: -725px -509px; }
+.gld-GL025 { background-position: -905px -509px; }
+.gld-GL026 { background-position: -1085px -509px; }
+.gld-GL027 { background-position: -1265px -509px; }
+.gld-GL028 { background-position: -1445px -509px; }
+.gld-GL029 { background-position: -1625px -509px; }
+.gld-GL030 { background-position: -5px -759px; }
+
+/* === Machado 1–10 (GL031–GL040) === */
+.gld-GL031 { background-position: -185px -759px; }
+.gld-GL032 { background-position: -365px -759px; }
+.gld-GL033 { background-position: -545px -759px; }
+.gld-GL034 { background-position: -725px -759px; }
+.gld-GL035 { background-position: -905px -759px; }
+.gld-GL036 { background-position: -1085px -759px; }
+.gld-GL037 { background-position: -1265px -759px; }
+.gld-GL038 { background-position: -1445px -759px; }
+.gld-GL039 { background-position: -1625px -759px; }
+.gld-GL040 { background-position: -5px -1009px; }
+
+/* === Armas danificadas (GL041–GL046) ===
+ * Ordem (linha 4, col=1..6): X|G, X|M, X|T, G|X, G|T, M|T
+ */
+.gld-GL041 { background-position: -185px -1009px; }
+.gld-GL042 { background-position: -365px -1009px; }
+.gld-GL043 { background-position: -545px -1009px; }
+.gld-GL044 { background-position: -725px -1009px; }
+.gld-GL045 { background-position: -905px -1009px; }
+.gld-GL046 { background-position: -1085px -1009px; }
+
+/* === Leões (GL047–GL050) === */
+.gld-GL047 { background-position: -1265px -1009px; }
+.gld-GL048 { background-position: -1445px -1009px; }
+.gld-GL049 { background-position: -1625px -1009px; }
+.gld-GL050 { background-position: -5px -1259px; }
+
+/* === Marcador de jogador inicial (GL051) === */
+.gld-GL051 { background-position: -185px -1259px; }
