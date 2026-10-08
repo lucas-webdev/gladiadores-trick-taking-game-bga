@@ -392,7 +392,7 @@ class Game extends \Table
                 // alvo 2: menor carta desse naipe na ÁREA do vencedor
                 $loc = "area_" . $winner;
                 $row = self::getObjectFromDB(
-                    "SELECT card_id FROM card WHERE location='{$loc}' AND type='combat' AND suit='" . addslashes($suit) . "' ORDER BY value ASC, card_id ASC LIMIT 1"
+                    "SELECT card_id FROM card WHERE location='{$loc}' AND type='combat' AND suit='" . self::escapeStringForDB($suit) . "' ORDER BY value ASC, card_id ASC LIMIT 1"
                 );
                 if ($row) self::DbQuery("UPDATE card SET location='discard', location_arg=0 WHERE card_id=" . (int)$row['card_id']);
             }
@@ -475,7 +475,7 @@ class Game extends \Table
             $loc = "area_" . $pid;
             foreach (self::SUITS as $s) {
                 $counts[$pid][$s] = (int)self::getUniqueValueFromDB(
-                    "SELECT COUNT(*) FROM card WHERE location='{$loc}' AND type='combat' AND suit='" . addslashes($s) . "'"
+                    "SELECT COUNT(*) FROM card WHERE location='{$loc}' AND type='combat' AND suit='" . self::escapeStringForDB($s) . "'"
                 );
             }
         }
@@ -493,14 +493,14 @@ class Game extends \Table
                 } elseif ($cnt === $max && $max > 0) {
                     // A) Maioria (ou empate na maioria): avança 1
                     self::DbQuery(
-                        "UPDATE glory_track SET position = position + 1 WHERE player_id={$pid} AND suit='" . addslashes($s) . "'"
+                        "UPDATE glory_track SET position = position + 1 WHERE player_id={$pid} AND suit='" . self::escapeStringForDB($s) . "'"
                     );
                 } else {
                     // C) Tem cartas mas não maioria
                     $diff = $max - $cnt;
                     $delta = ($diff >= 4) ? -2 : -1;
                     self::DbQuery(
-                        "UPDATE glory_track SET position = position + ({$delta}) WHERE player_id={$pid} AND suit='" . addslashes($s) . "'"
+                        "UPDATE glory_track SET position = position + ({$delta}) WHERE player_id={$pid} AND suit='" . self::escapeStringForDB($s) . "'"
                     );
                 }
             }
@@ -523,7 +523,7 @@ class Game extends \Table
             $positions = [];
             foreach ($pids as $pid) {
                 $positions[$pid] = (int)self::getUniqueValueFromDB(
-                    "SELECT position FROM glory_track WHERE player_id={$pid} AND suit='" . addslashes($s) . "'"
+                    "SELECT position FROM glory_track WHERE player_id={$pid} AND suit='" . self::escapeStringForDB($s) . "'"
                 );
             }
 
@@ -554,6 +554,14 @@ class Game extends \Table
         foreach ($totalScores as $pid => $score) {
             self::DbQuery("UPDATE player SET player_score={$score}, player_score_aux={$firstPlaceCount[$pid]} WHERE player_id={$pid}");
         }
+
+        $trackData = [];
+        foreach ($pids as $pid) {
+            $trackData[$pid] = self::getCollectionFromDb(
+                "SELECT suit, position FROM glory_track WHERE player_id={$pid}"
+            );
+        }
+        $this->notifyAllPlayers('gloryTrackUpdate', '', ['tracks' => $trackData]);
     }
 
     private function scoreSideB(): void
@@ -567,7 +575,7 @@ class Game extends \Table
             $bySuit = [];
             foreach (self::SUITS as $s) {
                 $cnt = (int)self::getUniqueValueFromDB(
-                    "SELECT COUNT(*) FROM card WHERE location='{$loc}' AND type='combat' AND suit='" . addslashes($s) . "'"
+                    "SELECT COUNT(*) FROM card WHERE location='{$loc}' AND type='combat' AND suit='" . self::escapeStringForDB($s) . "'"
                 );
                 if ($cnt > 0) {
                     $bySuit[$s] = $cnt;
@@ -666,7 +674,7 @@ class Game extends \Table
         }
         if ($playerCount === 3) {
             self::DbQuery("DELETE FROM card WHERE type='combat' AND value IN (2,3) AND location='draw'");
-            $row = $this->getObjectFromDB("SELECT card_id FROM card WHERE type='lion' AND location='draw' ORDER BY RAND() LIMIT 1");
+            $row = $this->getObjectFromDB("SELECT card_id FROM card WHERE type='lion' AND location='draw' ORDER BY card_id ASC LIMIT 1");
             if ($row) {
                 self::DbQuery("DELETE FROM card WHERE card_id=" . (int)$row['card_id']);
             }
@@ -842,7 +850,7 @@ class Game extends \Table
             [$a, $b] = explode('|', $card['dual_suits']);
             if ($declaredSuit !== $a && $declaredSuit !== $b) throw new \BgaUserException('Arma não cobre este naipe');
             // gravar naipe declarado na própria carta
-            self::DbQuery("UPDATE card SET suit='" . addslashes($declaredSuit) . "' WHERE card_id=" . $card_id);
+            self::DbQuery("UPDATE card SET suit='" . self::escapeStringForDB($declaredSuit) . "' WHERE card_id=" . $card_id);
             $card['suit'] = $declaredSuit;
         }
 

@@ -1,66 +1,278 @@
 /*******************************
- * Gladiadores - CSS refatorado
+ * Gladiadores - CSS
  * Sprite: img/cards_sprite.jpg (1800x1500)
  * Grade: 10 colunas × 6 linhas
  * Pitch: 180x250; Safe Zone centralizada
- * GL000 = bleed (não usada); GL001 inicia em col=1, row=0
  *******************************/
 
-/* ===== Layout ===== */
+/* ===== Zoom bar ===== */
+#gld-zoom-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  background: rgba(255,255,255,0.92);
+  border: 1px solid #ccc;
+  border-radius: 20px;
+  width: fit-content;
+  margin-bottom: 10px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.12);
+}
+#gld-zoom-bar button {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #aaa;
+  background: #f4f4f4;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 18px;
+  font-weight: bold;
+  line-height: 1;
+  padding: 0;
+  color: #333;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#gld-zoom-bar button:hover { background: #e0e0e0; border-color: #777; }
+#gld-zoom-label {
+  min-width: 42px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: bold;
+  color: #444;
+}
+
+/* ===== Scroll wrapper ===== */
+#gld-scroll-wrap {
+  overflow: auto;
+  width: 100%;
+  padding-bottom: 310px; /* espaço para a barra de mão fixa (inclui padding-top das cartas) */
+}
+
+/* ===== Área de jogo (elemento escalonado) ===== */
 #gld-game-area {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 12px;
-}
-#gld-player-tables {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
   gap: 16px;
+  padding: 4px 0 16px;
+  width: fit-content;
+  min-width: 100%;
+}
+
+/* ===== Linha superior: arena (esq) + trilha (dir) ===== */
+#gld-top-row {
+  display: flex;
+  flex-wrap: wrap;        /* empilha verticalmente em telas estreitas */
+  gap: 16px;
+  align-items: flex-start; /* não esticar verticalmente */
+}
+
+/* Coluna da arena: tamanho ajustado ao conteúdo, não cresce */
+#gld-arena-col {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Coluna da trilha de glória: largura fixa, não cresce */
+#gld-board-col {
+  flex: 0 0 auto;
 }
 
 /* ===== Arena ===== */
+.gld-arena-title {
+  font-size: 11px;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: #999;
+}
 .gld-arena {
   display: flex;
-  justify-content: center;
+  flex-wrap: wrap;
+  align-content: flex-start;
   gap: 8px;
-  margin: 12px 0;
-  padding: 8px;
-  border: 2px solid #888;
-  border-radius: 6px;
-  background: #f9f9f9;
+  padding: 10px 12px;
+  border: 2px solid #999;
+  border-radius: 8px;
+  background: rgba(249,249,249,0.95);
+  min-height: 260px; /* altura suficiente para uma carta + label */
+  /* min-width dinâmico definido por JS baseado no nº de jogadores */
 }
 .gld-arena-slot {
-  width: 180px;
-  height: 250px;
+  width: 175px;       /* slot estável por jogador */
+  flex-shrink: 0;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
   align-items: center;
+  gap: 4px;
+}
+.gld-arena-label {
+  font-size: 11px;
+  font-weight: bold;
+  color: #444;
+  white-space: nowrap;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* ===== Zona do jogador ===== */
-.gld-player-zone {
-  min-width: 260px;
+/* ===== Grid de jogadores ===== */
+#gld-players-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 12px;
+}
+
+/* ===== Painel do jogador ===== */
+.gld-player-panel {
   background: #fff;
-  border: 1px solid #bbb;
-  border-radius: 6px;
+  border: 2px solid #ddd;
+  border-radius: 8px;
   padding: 8px;
+  transition: border-color .25s, box-shadow .25s;
 }
-.gld-hand, .gld-area {
+.gld-self-panel {
+  border-color: #aaa;
+  background: #f6f6f6;
+}
+.gld-active-player {
+  border-color: #d4a800 !important;
+  box-shadow: 0 0 0 3px rgba(212,168,0,.3), 0 2px 10px rgba(212,168,0,.25) !important;
+}
+.gld-panel-header {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  min-height: 250px;
-  padding: 4px;
-  border: 1px solid #ccc;
-  background: #fafafa;
-  border-radius: 4px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #eee;
+}
+.gld-player-name {
+  font-size: 13px;
+  font-weight: bold;
+  /* sombra discreta para cores claras (branco, amarelo) ficarem legíveis */
+  text-shadow: 0 0 3px rgba(0,0,0,.35), 0 1px 2px rgba(0,0,0,.25);
+}
+.gld-hand-count {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 14px;
+  font-weight: bold;
+  background: #f0f0f0;
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  padding: 2px 10px 2px 8px;
+  flex-shrink: 0;
+  color: #333;
+}
+.gld-hc-icon {
+  display: inline-block;
+  width: 12px;
+  height: 17px;
+  border: 2px solid #666;
+  border-radius: 2px;
+  background: #ddd;
+  vertical-align: middle;
+  flex-shrink: 0;
 }
 
-/* ===== Cartas ===== */
+/* ===== Colunas de naipes ===== */
+.gld-suit-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+.gld-suit-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.gld-suit-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 5px 2px 4px;
+  border-radius: 4px;
+  user-select: none;
+  gap: 1px;
+}
+.gld-suit-icon {
+  width: 25px;
+  height: 25px;
+  background-image: url('img/cards_sprite.jpg');
+  background-repeat: no-repeat;
+  border-radius: 3px;
+  border: 1px solid rgba(255,255,255,0.45);
+  box-shadow: 0 1px 3px rgba(0,0,0,.35);
+  transform: rotate(180deg);
+  flex-shrink: 0;
+}
+/* bg-size 1440×1200 (sprite × 0.8); offset de linha = 200px; x fixo = -251px */
+.gld-suit-icon-T { background-size: 1440px 1200px; background-position: -251px -138px; }
+.gld-suit-icon-M { background-size: 1440px 1200px; background-position: -251px -338px; }
+.gld-suit-icon-G { background-size: 1440px 1200px; background-position: -251px -538px; }
+.gld-suit-icon-X { background-size: 1440px 1200px; background-position: -251px -738px; }
+.gld-suit-name {
+  font-size: 9px;
+  font-weight: bold;
+  color: #fff;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.gld-suit-colorname {
+  font-size: 8px;
+  color: rgba(255,255,255,0.82);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.gld-suit-cards {
+  display: flex;
+  flex-direction: column;
+  min-height: 40px;
+  padding: 2px;
+  border: 1px solid #e4e4e4;
+  border-radius: 4px;
+  background: #fafafa;
+  overflow: visible;
+}
+
+/* ===== Cartas na área (pequenas, empilhadas) ===== */
+.gld-area-card-wrap {
+  position: relative;
+  height: 38px;
+  width: 80px;
+  flex-shrink: 0;
+  overflow: visible;
+}
+.gld-area-card-wrap:last-child {
+  height: 112px;
+}
+.gld-area-card-wrap .gld-card {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform: scale(0.47);
+  transform-origin: top left;
+  cursor: default;
+  transition: none;
+  box-shadow: 0 1px 3px rgba(0,0,0,.25);
+}
+.gld-area-card-wrap .gld-card:hover {
+  transform: scale(0.47);
+  box-shadow: 0 1px 3px rgba(0,0,0,.25);
+  z-index: 0;
+}
+
+/* ===== Cartas (mão — tamanho cheio) ===== */
 .gld-card {
-  width: 169px;        /* safe zone */
+  width: 169px;
   height: 232px;
   background-image: url('img/cards_sprite.jpg');
   background-repeat: no-repeat;
@@ -70,25 +282,27 @@
   cursor: pointer;
   user-select: none;
   box-shadow: 0 2px 4px rgba(0,0,0,.3);
-  /* centra a safe zone dentro do slot de 184x250: */
   transform: translate(-5px, -9px);
+  transition: transform .15s, box-shadow .15s;
 }
 .gld-card:hover {
   transform: translate(-5px, -9px) scale(1.05);
-  z-index: 2;
+  box-shadow: 0 4px 8px rgba(0,0,0,.4);
+  z-index: 5;
+}
+.gld-card.gld-playable {
+  box-shadow: 0 0 8px 3px rgba(0, 200, 0, 0.7);
+}
+.gld-card.gld-unplayable {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(40%);
 }
 
 /* ===== Posições do sprite =====
  * Fórmula usada:
- *   X(col) = -(5 + 180*col), col=0..9
- *   Y(row) = -(9 + 250*row), row=0..5
- * Mapeamento:
- *   row0: [bleed][GL001..GL009]
- *   row1: [GL010..GL019]
- *   row2: [GL020..GL029]
- *   row3: [GL030..GL039]
- *   row4: [GL040..GL049]
- *   row5: [GL050..GL051]
+ *   X(col) = -(5 + 180*col)
+ *   Y(row) = -(9 + 250*row)
  */
 
 /* === Tridente 1–10 (GL001–GL010) === */
@@ -100,7 +314,7 @@
 .gld-GL006 { background-position: -1085px -9px; }
 .gld-GL007 { background-position: -1265px -9px; }
 .gld-GL008 { background-position: -1445px -9px; }
-.gld-GL009 { background-position: -1625px -9px; }  /* confirmado */
+.gld-GL009 { background-position: -1625px -9px; }
 .gld-GL010 { background-position: -5px -259px; }
 
 /* === Mangual 1–10 (GL011–GL020) === */
@@ -139,9 +353,7 @@
 .gld-GL039 { background-position: -1625px -759px; }
 .gld-GL040 { background-position: -5px -1009px; }
 
-/* === Armas danificadas (GL041–GL046) ===
- * Ordem (linha 4, col=1..6): X|G, X|M, X|T, G|X, G|T, M|T
- */
+/* === Armas danificadas (GL041–GL046) === */
 .gld-GL041 { background-position: -185px -1009px; }
 .gld-GL042 { background-position: -365px -1009px; }
 .gld-GL043 { background-position: -545px -1009px; }
@@ -158,41 +370,111 @@
 /* === Marcador de jogador inicial (GL051) === */
 .gld-GL051 { background-position: -185px -1259px; }
 
-/* === Verso da carta (provisório: usa GL051) === */
-.gld-card-back {
-  background-image: url('img/cards_sprite.jpg');
-  background-repeat: no-repeat;
-  background-size: 1800px 1500px;
-  background-position: -185px -1259px;
-  width: 169px;
-  height: 232px;
-  border-radius: 8px;
-  border: 1px solid #333;
-  box-shadow: 0 2px 4px rgba(0,0,0,.3);
-  user-select: none;
-  display: inline-block;
+/* ===== Barra de mão (fixa na base da tela) ===== */
+#gld-hand-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(247,247,247,0.97);
+  border-top: 2px solid #bbb;
+  box-shadow: 0 -4px 14px rgba(0,0,0,.16);
+  z-index: 1000;
+  padding: 8px 16px 14px;
 }
-
-/* ===== Interação: cartas jogáveis / não-jogáveis ===== */
-.gld-card.gld-playable {
-  box-shadow: 0 0 8px 3px rgba(0, 200, 0, 0.7);
-  cursor: pointer;
-}
-.gld-card.gld-unplayable {
-  opacity: 0.45;
-  cursor: not-allowed;
-  filter: grayscale(40%);
-}
-
-/* ===== Label do jogador na arena ===== */
-.gld-arena-label {
-  text-align: center;
-  font-size: 11px;
+.gld-hand-bar-label {
+  font-size: 10px;
   font-weight: bold;
-  color: #333;
-  margin-bottom: 2px;
-  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: #aaa;
+  margin-bottom: 4px;
+}
+.gld-hand-inner {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  overflow-x: auto;
+  /* padding-top acomoda translate(-5px,-9px) + scale(1.05) no hover (~15px total) */
+  padding-top: 18px;
+  padding-bottom: 4px;
+}
+
+/* ===== Layout responsivo ===== */
+
+/* Tablet / mobile: empilhar tudo verticalmente */
+@media (max-width: 900px) {
+  #gld-game-area {
+    width: 100%;
+    min-width: unset;
+  }
+  #gld-top-row {
+    flex-direction: column;
+  }
+  /* Trilha acima, arena abaixo */
+  #gld-board-col { order: 1; }
+  #gld-arena-col { order: 2; }
+  /* Arena: ignorar min-width definido por JS */
+  .gld-arena {
+    min-width: unset !important;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .gld-arena-slot {
+    width: 140px;
+  }
+  /* Jogadores: coluna única */
+  #gld-players-grid {
+    grid-template-columns: 1fr;
+  }
+  .gld-player-panel {
+    min-width: unset;
+  }
+}
+
+/* Mobile estreito: escalar trilha de glória para caber na tela */
+@media (max-width: 640px) {
+  #gld-board-col {
+    /* Dimensionar o container para o tamanho visual escalonado */
+    width: calc(600px * 0.6);   /* 360px */
+    height: calc(216px * 0.6);  /* ~130px */
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  #gld-board {
+    transform: scale(0.6);
+    transform-origin: top left;
+    box-shadow: none;
+  }
+}
+
+/* ===== Tabuleiro — Trilha de Glória (Lado A) ===== */
+#gld-board {
+  position: relative;
+  width: 600px;
+  height: 216px;
+  background-image: url("img/board_sprite.jpg");
+  background-size: 2400px 216px;
+  background-position: 0 0;
+  background-repeat: no-repeat;
   overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 180px;
+  border-radius: 6px;
+  box-shadow: 0 2px 6px rgba(0,0,0,.35);
+  flex-shrink: 0;
+}
+#gld-track-layer {
+  position: absolute;
+  inset: 0;
+}
+.gld-track-token {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid rgba(0,0,0,.55);
+  transform: translate(-50%, -50%);
+  transition: left .45s ease, top .2s ease;
+  box-shadow: 0 2px 4px rgba(0,0,0,.45);
+  z-index: 10;
+  pointer-events: none;
 }
